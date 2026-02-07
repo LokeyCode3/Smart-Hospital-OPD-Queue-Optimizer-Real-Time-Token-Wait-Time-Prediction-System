@@ -10,7 +10,7 @@ exports.generalLimiter = rateLimit({
 // Auth Limiter (Stricter)
 exports.authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 100, // Increased for testing
+  max: 100, // Limit each IP to 100 login requests per hour
   message: { message: 'Too many login attempts from this IP, please try again after an hour' }
 });
 
@@ -33,4 +33,11 @@ exports.consultationOtpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: { message: 'Too many OTP operations, please try again later' }
+});
+
+// Admin Limiter
+exports.adminLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: { message: 'Too many admin requests, please try again later' }
 });

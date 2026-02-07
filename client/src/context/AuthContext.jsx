@@ -16,15 +16,20 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, role = 'PATIENT') => {
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const endpoint = role === 'ADMIN' ? '/auth/admin/login' : 
+                       role === 'DOCTOR' ? '/auth/doctor/login' : 
+                       '/auth/patient/login';
+                       
+      const res = await api.post(endpoint, { email, password });
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
-      return res.data.user;
+      return res.data; // Return full response { token, user }
     } catch (err) {
-      throw err.response?.data?.message || 'Login failed';
+      console.error("Login Error:", err);
+      throw err; // Throw full error object so Login.jsx can extract message
     }
   };
 

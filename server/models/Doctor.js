@@ -25,6 +25,10 @@ const doctorSchema = new mongoose.Schema({
     required: true,
     default: 500 // Default fee
   },
+  opdTimings: {
+    type: String, // e.g., "09:00 AM - 05:00 PM"
+    default: "09:00 AM - 05:00 PM"
+  },
   active: {
     type: Boolean,
     default: true

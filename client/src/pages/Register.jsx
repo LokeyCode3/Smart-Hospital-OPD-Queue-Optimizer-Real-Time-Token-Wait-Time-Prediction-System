@@ -91,7 +91,7 @@ const Register = () => {
                 <Shield size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-secondary)' }} />
                 <select value={role} onChange={(e) => setRole(e.target.value)} style={{ paddingLeft: '36px' }}>
                     <option value="PATIENT">Patient</option>
-                    <option value="DOCTOR">Doctor (Demo)</option>
+                    {/* <option value="DOCTOR">Doctor (Demo)</option> */}
                     <option value="ADMIN">Admin (Demo)</option>
                 </select>
             </div>

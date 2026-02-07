@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import DoctorHistory from './pages/DoctorHistory';
@@ -44,8 +45,12 @@ function App() {
       ) : (
         <Router>
           <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Login role="PATIENT" />} />
+          <Route path="/patient/forgot-password" element={<ForgotPassword role="PATIENT" />} />
+          <Route path="/admin/login" element={<Login role="ADMIN" />} />
+          <Route path="/admin/forgot-password" element={<ForgotPassword role="ADMIN" />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<Navigate to="/patient/forgot-password" replace />} />
           
           <Route 
             path="/admin" 
