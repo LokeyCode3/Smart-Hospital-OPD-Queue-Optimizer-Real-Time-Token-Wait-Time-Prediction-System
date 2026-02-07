@@ -72,6 +72,7 @@ app.use('/api/notifications', require('./routes/notification'));
 app.use('/api/otp', require('./routes/otp'));
 app.use('/api/consultation-otp', require('./routes/consultationOtp'));
 app.use('/api/consultations', require('./routes/consultation'));
+app.use('/api/payments', require('./routes/payment'));
 
 const PORT = process.env.PORT || 5001;
 

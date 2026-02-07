@@ -10,6 +10,23 @@ exports.getAnalytics = async (req, res) => {
 
     const totalTokens = await Token.countDocuments({ createdAt: { $gte: startOfDay } });
     
+    // Revenue & Emergency Stats
+    const emergencyTokens = await Token.countDocuments({ 
+        createdAt: { $gte: startOfDay },
+        priority: 'EMERGENCY'
+    });
+    
+    const normalTokens = await Token.countDocuments({ 
+        createdAt: { $gte: startOfDay },
+        priority: 'NORMAL'
+    });
+
+    const revenueResult = await Token.aggregate([
+        { $match: { createdAt: { $gte: startOfDay }, paymentStatus: 'PAID' } },
+        { $group: { _id: null, total: { $sum: '$consultationFee' } } }
+    ]);
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+    
     // Doctor Stats
     const doctors = await Doctor.find({ active: true });
     const doctorStats = await Promise.all(doctors.map(async (doc) => {
@@ -35,6 +52,9 @@ exports.getAnalytics = async (req, res) => {
 
     res.json({
       totalTokens,
+      emergencyTokens,
+      normalTokens,
+      totalRevenue,
       doctorStats,
       peakHours
     });

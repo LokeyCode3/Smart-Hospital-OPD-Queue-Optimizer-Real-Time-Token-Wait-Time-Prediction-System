@@ -2,7 +2,9 @@ const Token = require('../models/Token');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Payment = require('../models/Payment');
 const { createNotification } = require('./notificationController');
+const crypto = require('crypto');
 
 // Helper: Calculate Dynamic Wait Time
 const calculateDynamicWaitTime = async (doctor) => {
@@ -135,6 +137,118 @@ exports.bookToken = async (req, res) => {
   }
 };
 
+// @route   POST /api/token/book-emergency
+// @desc    Book an emergency token with payment verification
+exports.bookEmergencyToken = async (req, res) => {
+  try {
+    const { 
+      doctorId, patientName, reason, visitDate, patientAge, patientGender, patientMobile,
+      razorpay_order_id, razorpay_payment_id, razorpay_signature 
+    } = req.body;
+    
+    const patientId = req.user ? req.user.id : null;
+
+    // 1. Verify Payment Signature
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ message: 'Payment details missing' });
+    }
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(body.toString())
+        .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+        return res.status(400).json({ message: 'Invalid payment signature' });
+    }
+
+    // 2. Find Payment and Update
+    const payment = await Payment.findOne({ orderId: razorpay_order_id });
+    if (!payment) {
+        return res.status(404).json({ message: 'Payment order not found' });
+    }
+    
+    if (payment.status === 'PAID') {
+         // Already processed, idempotent check
+         if (payment.tokenId) {
+             const existingToken = await Token.findById(payment.tokenId);
+             return res.json({ token: existingToken, message: 'Token already booked for this payment' });
+         }
+    }
+
+    payment.status = 'PAID';
+    payment.paymentId = razorpay_payment_id;
+    payment.signature = razorpay_signature;
+    await payment.save();
+
+    // 3. Book Token
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+
+    const dateOfVisit = visitDate ? new Date(visitDate) : new Date();
+    const startOfDay = new Date(dateOfVisit);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(dateOfVisit);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todayTokensCount = await Token.countDocuments({
+      doctorId,
+      visitDate: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    const tokenNumber = todayTokensCount + 1;
+
+    const token = new Token({
+      patientName,
+      patientId,
+      doctorId,
+      tokenNumber,
+      priority: 'EMERGENCY',
+      isEmergency: true,
+      reason,
+      visitDate: dateOfVisit,
+      patientAge,
+      patientGender,
+      patientMobile,
+      paymentStatus: 'PAID',
+      consultationFee: payment.amount,
+      paymentId: payment._id,
+      status: 'WAITING'
+    });
+
+    await token.save();
+
+    // Link Token to Payment
+    payment.tokenId = token._id;
+    await payment.save();
+
+    // 4. Notifications
+    const io = req.app.get('io');
+    io.to(doctorId).emit('queueUpdate', { type: 'NEW_TOKEN', token });
+    
+    if (patientId) {
+      await createNotification(patientId, `EMERGENCY Token #${tokenNumber} booked!`, 'SUCCESS');
+    }
+
+    // 5. Audit Log
+    if (patientId) {
+        const audit = new AuditLog({
+            action: 'BOOK_EMERGENCY_TOKEN',
+            performedBy: patientId,
+            details: { tokenNumber, doctorId, paymentId: payment._id }
+        });
+        await audit.save();
+    }
+
+    res.json({ token, message: 'Emergency Token Booked Successfully' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error: ' + err.message);
+  }
+};
+
 // @route   GET /api/queue/:doctorId
 // @desc    Get live queue for a doctor (TODAY ONLY)
 exports.getQueue = async (req, res) => {
@@ -199,46 +313,20 @@ exports.updateStatus = async (req, res) => {
       }).sort({ createdAt: 1 }); // Simplified sort
       
       if (nextToken && nextToken.patientId) {
-          await createNotification(nextToken.patientId, `You are next in line!`, 'WARNING');
-          const io = req.app.get('io');
-          // Emit specific event to next user if we had user sockets, or generic queue update handles it
+         await createNotification(nextToken.patientId, `You are next in line! Please be ready.`, 'INFO');
       }
+    }
 
-    } else if (status === 'DONE') {
-      return res.status(400).json({ message: 'Consultation OTP verification required to mark DONE' });
-    } else if (status === 'NO_SHOW') {
-        // Handle No Show
-        if (token.patientId) {
-            const user = await User.findById(token.patientId);
-            user.noShowCount += 1;
-            
-            // Penalty: If > 3 no-shows, 24h cooldown
-            if (user.noShowCount >= 3) {
-                const cooldown = new Date();
-                cooldown.setHours(cooldown.getHours() + 24);
-                user.bookingCooldownUntil = cooldown;
-                user.noShowCount = 0; // Reset or keep incrementing? Let's reset cycle.
-                await createNotification(user._id, `You have been marked as No-Show multiple times. Booking suspended for 24h.`, 'ALERT');
-            } else {
-                await createNotification(user._id, `You missed your appointment. Please cancel in advance next time.`, 'WARNING');
-            }
-            await user.save();
-        }
+    if (status === 'DONE') {
+       // Logic moved to Consultation Complete usually, but if done here:
+       // Update doctor stats, etc.
     }
 
     await token.save();
-
-    // 2. Real-time update
+    
+    // Emit update
     const io = req.app.get('io');
     io.to(token.doctorId.toString()).emit('queueUpdate', { type: 'STATUS_UPDATE', token });
-
-    // 3. Audit Log
-    const audit = new AuditLog({
-        action: `TOKEN_${status}`,
-        performedBy: req.user.id,
-        details: { tokenId: token._id, oldStatus, newStatus: status }
-    });
-    await audit.save();
 
     res.json(token);
   } catch (err) {

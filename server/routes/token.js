@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { bookToken, getQueue, updateStatus } = require('../controllers/tokenController');
+const { bookToken, bookEmergencyToken, getQueue, updateStatus } = require('../controllers/tokenController');
 const { getAnalytics, exportReport } = require('../controllers/analyticsController');
 const { auth, authorize } = require('../middleware/authMiddleware');
 const { validate, schemas } = require('../middleware/validation');
@@ -8,6 +8,7 @@ const { bookingLimiter } = require('../middleware/rateLimiter');
 
 // Token Routes
 router.post('/book', auth, authorize(['PATIENT']), bookingLimiter, validate(schemas.bookToken), bookToken);
+router.post('/book-emergency', auth, authorize(['PATIENT']), bookingLimiter, bookEmergencyToken);
 router.get('/queue/:doctorId', getQueue);
 router.patch('/:id/status', auth, authorize(['DOCTOR']), updateStatus);
 

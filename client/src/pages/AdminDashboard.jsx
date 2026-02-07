@@ -134,12 +134,12 @@ const AdminDashboard = () => {
                 <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--accent-blue)' }}>{analytics?.activeTokens || 0}</div>
             </div>
             <div className="glass-card">
-                <h4 style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>Completed</h4>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--success)' }}>{consultationStats?.totalConsultations || 0}</div>
+                <h4 style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>Revenue (Today)</h4>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--success)' }}>₹{analytics?.totalRevenue || 0}</div>
             </div>
             <div className="glass-card">
-                <h4 style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>Avg Wait</h4>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--warning)' }}>{analytics?.avgWaitTime ? Math.round(analytics.avgWaitTime) : 0}m</div>
+                <h4 style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>Emergency</h4>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--danger)' }}>{analytics?.emergencyTokens || 0}</div>
             </div>
         </div>
 

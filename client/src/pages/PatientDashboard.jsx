@@ -116,9 +116,77 @@ const PatientDashboard = () => {
     setShowBookingModal(true);
   };
 
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePaymentAndBook = async () => {
+    const res = await loadRazorpay();
+    if (!res) {
+        alert('Razorpay SDK failed to load. Are you online?');
+        return;
+    }
+
+    try {
+        // 1. Create Order
+        const orderRes = await api.post('/payments/create-order', {
+            doctorId: selectedDoctor._id
+        });
+        const order = orderRes.data;
+
+        // 2. Open Razorpay
+        const options = {
+            key: order.key,
+            amount: order.amount,
+            currency: order.currency,
+            name: order.name,
+            description: order.description,
+            order_id: order.id,
+            handler: async function (response) {
+                // 3. Verify & Book on Success
+                try {
+                    const bookRes = await api.post('/token/book-emergency', {
+                        doctorId: selectedDoctor._id,
+                        ...bookingForm,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_signature: response.razorpay_signature
+                    });
+                    
+                    setMyToken(bookRes.data.token);
+                    fetchQueue(selectedDoctor._id);
+                    setShowBookingModal(false);
+                    alert(`Emergency Token Booked! #${bookRes.data.token.tokenNumber}`);
+                } catch (err) {
+                    alert(err.response?.data?.message || 'Booking failed after payment. Contact support.');
+                }
+            },
+            prefill: order.prefill,
+            theme: { color: "#3a6df0" }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+
+    } catch (err) {
+        alert(err.response?.data?.message || 'Payment initiation failed');
+    }
+  };
+
   const bookToken = async (e) => {
     e.preventDefault();
     if (!selectedDoctor) return;
+
+    if (bookingForm.priority === 'EMERGENCY') {
+        await handlePaymentAndBook();
+        return;
+    }
 
     try {
       const res = await api.post('/token/book', {
@@ -406,21 +474,38 @@ const PatientDashboard = () => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>Reason for Visit</label>
-                <textarea value={bookingForm.reason} onChange={e => setBookingForm({...bookingForm, reason: e.target.value})} required placeholder="Briefly describe..." rows="2"></textarea>
+                <textarea value={bookingForm.reason} onChange={e => setBookingForm({...bookingForm, reason: e.target.value})} rows="3" style={{ width: '100%' }}></textarea>
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>Priority</label>
-                <select value={bookingForm.priority} onChange={e => setBookingForm({...bookingForm, priority: e.target.value})}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="EMERGENCY">Emergency</option>
-                </select>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input type="radio" name="priority" value="NORMAL" checked={bookingForm.priority === 'NORMAL'} onChange={e => setBookingForm({...bookingForm, priority: e.target.value})} />
+                        Normal (Free)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--danger)' }}>
+                        <input type="radio" name="priority" value="EMERGENCY" checked={bookingForm.priority === 'EMERGENCY'} onChange={e => setBookingForm({...bookingForm, priority: e.target.value})} />
+                        Emergency (Paid)
+                    </label>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowBookingModal(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
-                <button type="submit" disabled={!phoneOtpVerified} className="btn-primary" style={{ flex: 1, opacity: phoneOtpVerified ? 1 : 0.5, cursor: phoneOtpVerified ? 'pointer' : 'not-allowed' }}>Confirm Booking</button>
-              </div>
+              {bookingForm.priority === 'EMERGENCY' && (
+                  <div className="glass-card" style={{ background: 'rgba(231, 76, 60, 0.1)', borderColor: 'var(--danger)', padding: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Consultation Fee</span>
+                          <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'white' }}>₹{selectedDoctor.consultationFee || 500}</span>
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                          Advance payment required for Emergency priority.
+                      </p>
+                  </div>
+              )}
+
+              <button type="submit" className={bookingForm.priority === 'EMERGENCY' ? "btn-danger" : "btn-primary"} style={{ marginTop: '10px' }} disabled={!phoneOtpVerified}>
+                {bookingForm.priority === 'EMERGENCY' ? 'Pay & Book Emergency Token' : 'Book Appointment'}
+              </button>
             </form>
           </div>
         </div>

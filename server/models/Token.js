@@ -41,6 +41,23 @@ const tokenSchema = new mongoose.Schema({
     enum: ['NORMAL', 'EMERGENCY'],
     default: 'NORMAL'
   },
+  isEmergency: {
+    type: Boolean,
+    default: false
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['PENDING', 'PAID', 'FAILED', 'NA'],
+    default: 'NA'
+  },
+  consultationFee: {
+    type: Number,
+    default: 0
+  },
+  paymentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment'
+  },
   status: {
     type: String,
     enum: ['WAITING', 'IN_PROGRESS', 'PENDING_VERIFICATION', 'DONE', 'NO_SHOW'],

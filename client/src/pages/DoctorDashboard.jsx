@@ -188,7 +188,15 @@ const DoctorDashboard = () => {
                                 {token.tokenNumber}
                             </div>
                             <div>
-                                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{token.patientName || 'Unknown Patient'}</h3>
+                                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {token.patientName || 'Unknown Patient'}
+                                    {token.priority === 'EMERGENCY' && (
+                                        <span className="badge badge-danger" style={{ fontSize: '11px' }}>EMERGENCY</span>
+                                    )}
+                                    {token.paymentStatus === 'PAID' && (
+                                        <span className="badge badge-success" style={{ fontSize: '11px' }}>PAID</span>
+                                    )}
+                                </h3>
                                 <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Clock size={14} /> {new Date(token.createdAt).toLocaleTimeString()}
